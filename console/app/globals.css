@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body { @apply bg-mist text-ink antialiased; }
+  input, select, textarea { font-size: 16px; }
+  @media (min-width: 640px) { input, select, textarea { font-size: 14px; } }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply bg-brand-500 text-white hover:bg-brand-600; }
+  .btn-dark { @apply bg-ink text-white hover:bg-ink-2; }
+  .btn-ghost { @apply border border-edge bg-white text-ink hover:bg-mist; }
+  .btn-soft { @apply bg-brand-50 text-brand-600 hover:bg-brand-100; }
+  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+  .input { @apply w-full rounded-lg border border-edge bg-white px-3 py-2.5 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100; }
+}

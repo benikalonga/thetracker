@@ -1,0 +1,37 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+      MYSQL_DATABASE: thetracker
+    volumes: [db:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      retries: 30
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/thetracker
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set in .env}
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+      CONSOLE_URL: ${CONSOLE_URL:?set in .env}
+    ports: ["4000:4000"]
+
+  console:
+    build:
+      context: ./console
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?set in .env}
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["3000:3000"]
+
+volumes:
+  db:

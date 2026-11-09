@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "TheTracker",
+    "slug": "thetracker",
+    "scheme": "thetracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#14122B" },
+    "ios": {
+      "bundleIdentifier": "app.thetracker.field",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "TheTracker uses your location to sort nearby customers, verify visits, and record your route while you are on shift.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.thetracker.field",
+      "adaptiveIcon": { "backgroundColor": "#14122B", "foregroundImage": "./assets/android-icon-foreground.png" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "config": { "googleMaps": { "apiKey": "" } }
+    },
+    "plugins": ["expo-secure-store", "expo-location"]
+  }
+}

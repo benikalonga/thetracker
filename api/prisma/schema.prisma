@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  AGENT
+}
+
+enum CustomerStatus {
+  LEAD
+  ACTIVE
+  AT_RISK
+  INACTIVE
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum VisitStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum VisitOutcome {
+  ORDER_TAKEN
+  PAYMENT_COLLECTED
+  SERVICE_DONE
+  FOLLOW_UP
+  NOT_AVAILABLE
+  NOT_INTERESTED
+  OTHER
+}
+
+enum ReviewState {
+  NOT_NEEDED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum StopStatus {
+  PENDING
+  VISITED
+  SKIPPED
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+model User {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  fullName         String    @db.VarChar(120)
+  email            String    @unique @db.VarChar(190)
+  phone            String?   @db.VarChar(32)
+  passwordHash     String    @db.VarChar(100)
+  role             Role      @default(AGENT)
+  isActive         Boolean   @default(true)
+  managerId        String?   @db.VarChar(36)
+  dailyVisitTarget Int       @default(8)
+  failedLogins     Int       @default(0)
+  lockedUntil      DateTime?
+  lastLat          Float?
+  lastLng          Float?
+  lastSeenAt       DateTime?
+  battery          Int?
+  createdAt        DateTime  @default(now())
+
+  manager       User?            @relation("Team", fields: [managerId], references: [id], onDelete: SetNull)
+  team          User[]           @relation("Team")
+  sessions      RefreshSession[]
+  customers     Customer[]       @relation("Assigned")
+  created       Customer[]       @relation("Creator")
+  favorites     Favorite[]
+  notes         Note[]
+  visits        Visit[]          @relation("VisitAgent")
+  reviews       Visit[]          @relation("VisitReviewer")
+  plans         DayPlan[]
+  tasks         Task[]           @relation("TaskAssignee")
+  tasksCreated  Task[]           @relation("TaskCreator")
+  shifts        Shift[]
+  pings         LocationPing[]
+  notifications Notification[]
+  audit         AuditEntry[]
+
+  @@index([managerId])
+}
+
+model RefreshSession {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  tokenHash String   @unique @db.VarChar(64)
+  userId    String   @db.VarChar(36)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Customer {
+  id             String         @id @default(uuid()) @db.VarChar(36)
+  code           String         @unique @db.VarChar(16)
+  name           String         @db.VarChar(160)
+  contactName    String?        @db.VarChar(120)
+  phone          String?        @db.VarChar(32)
+  email          String?        @db.VarChar(190)
+  address        String?        @db.VarChar(255)
+  city           String?        @db.VarChar(100)
+  lat            Float
+  lng            Float
+  status         CustomerStatus @default(LEAD)
+  priority       Priority       @default(NORMAL)
+  segment        String?        @db.VarChar(60)
+  tags           Json?
+  geofenceM      Int?
+  visitEveryDays Int            @default(30)
+  lastVisitAt    DateTime?
+  assignedToId   String?        @db.VarChar(36)
+  createdById    String?        @db.VarChar(36)
+  archivedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  assignedTo User?      @relation("Assigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("Creator", fields: [createdById], references: [id], onDelete: SetNull)
+  favorites  Favorite[]
+  notes      Note[]
+  visits     Visit[]
+  stops      PlanStop[]
+  tasks      Task[]
+
+  @@index([assignedToId])
+  @@index([status])
+  @@index([name])
+}
+
+model Favorite {
+  userId     String   @db.VarChar(36)
+  customerId String   @db.VarChar(36)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, customerId])
+}
+
+model Note {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  customerId String   @db.VarChar(36)
+  authorId   String   @db.VarChar(36)
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+}
+
+model Shift {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  agentId    String    @db.VarChar(36)
+  /// Equals agentId while open and NULL once ended: the database allows one open shift per agent.
+  openKey    String?   @unique @db.VarChar(36)
+  startedAt  DateTime
+  startLat   Float?
+  startLng   Float?
+  endedAt    DateTime?
+  endLat     Float?
+  endLng     Float?
+  distanceKm Float     @default(0)
+  autoClosed Boolean   @default(false)
+  agent      User      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  pings LocationPing[]
+
+  @@index([agentId, startedAt])
+}
+
+model LocationPing {
+  id         BigInt   @id @default(autoincrement())
+  agentId    String   @db.VarChar(36)
+  shiftId    String   @db.VarChar(36)
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  speed      Float?
+  recordedAt DateTime
+  agent      User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  shift      Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, recordedAt])
+  @@index([shiftId])
+  @@index([recordedAt])
+}
+
+model Visit {
+  id               String        @id @default(uuid()) @db.VarChar(36)
+  customerId       String        @db.VarChar(36)
+  agentId          String        @db.VarChar(36)
+  /// Equals agentId while in progress: the database allows one open visit per agent.
+  openKey          String?       @unique @db.VarChar(36)
+  status           VisitStatus   @default(IN_PROGRESS)
+  checkInAt        DateTime
+  checkInLat       Float
+  checkInLng       Float
+  checkInDistanceM Int
+  withinGeofence   Boolean
+  overrideReason   String?       @db.VarChar(255)
+  checkOutAt       DateTime?
+  checkOutLat      Float?
+  checkOutLng      Float?
+  outcome          VisitOutcome?
+  summary          String?       @db.Text
+  orderCents       Int           @default(0)
+  review           ReviewState   @default(NOT_NEEDED)
+  reviewNote       String?       @db.VarChar(255)
+  reviewedById     String?       @db.VarChar(36)
+  reviewedAt       DateTime?
+  createdAt        DateTime      @default(now())
+
+  customer Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  agent    User       @relation("VisitAgent", fields: [agentId], references: [id], onDelete: Cascade)
+  reviewer User?      @relation("VisitReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  stops    PlanStop[]
+
+  @@index([agentId, checkInAt])
+  @@index([customerId, checkInAt])
+  @@index([review])
+}
+
+model DayPlan {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  agentId   String   @db.VarChar(36)
+  date      String   @db.VarChar(10)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  agent     User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  stops PlanStop[]
+
+  @@unique([agentId, date])
+}
+
+model PlanStop {
+  id         String     @id @default(uuid()) @db.VarChar(36)
+  planId     String     @db.VarChar(36)
+  customerId String     @db.VarChar(36)
+  position   Int
+  status     StopStatus @default(PENDING)
+  visitId    String?    @db.VarChar(36)
+  skipReason String?    @db.VarChar(255)
+  plan       DayPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  visit      Visit?     @relation(fields: [visitId], references: [id], onDelete: SetNull)
+
+  @@unique([planId, customerId])
+  @@index([planId, position])
+}
+
+model Task {
+  id           String     @id @default(uuid()) @db.VarChar(36)
+  title        String     @db.VarChar(160)
+  details      String?    @db.Text
+  dueAt        DateTime
+  priority     Priority   @default(NORMAL)
+  status       TaskStatus @default(OPEN)
+  customerId   String?    @db.VarChar(36)
+  assignedToId String     @db.VarChar(36)
+  createdById  String     @db.VarChar(36)
+  completedAt  DateTime?
+  remindedAt   DateTime?
+  createdAt    DateTime   @default(now())
+
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedTo User      @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: Cascade)
+  createdBy  User      @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([assignedToId, status, dueAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  userId    String    @db.VarChar(36)
+  kind      String    @db.VarChar(40)
+  title     String    @db.VarChar(160)
+  body      String    @db.VarChar(500)
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model AuditEntry {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  actorId   String?  @db.VarChar(36)
+  action    String   @db.VarChar(60)
+  entity    String   @db.VarChar(40)
+  entityId  String?  @db.VarChar(36)
+  data      Json?
+  createdAt DateTime @default(now())
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+model Setting {
+  key   String @id @db.VarChar(60)
+  value String @db.VarChar(255)
+}
